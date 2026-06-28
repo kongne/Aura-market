@@ -1,0 +1,6 @@
+{
+  "name": "AI Marketing and Communication Agent",
+  "description": "An automated AI marketing and communication agent for small businesses, facilitating social media scheduling, automatic multi-lingual customer inquiry handling, and extension management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
