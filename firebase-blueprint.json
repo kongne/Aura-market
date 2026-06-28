@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "AgentConfig": {
+      "title": "AgentConfig",
+      "description": "Configuration for the AI Marketing and Communication Agent",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "businessType": { "type": "string" },
+        "targetAudience": { "type": "string" },
+        "tone": { "type": "string", "enum": ["professional", "playful", "bold", "informative"] },
+        "primaryLanguage": { "type": "string" },
+        "languages": { "type": "array" },
+        "autoPilotEnabled": { "type": "boolean" },
+        "webhookUrl": { "type": "string" },
+        "systemPrompt": { "type": "string" },
+        "styleGuide": { "type": "string" },
+        "faqs": { "type": "array" }
+      },
+      "required": ["businessName", "businessType", "targetAudience", "tone", "primaryLanguage", "languages", "autoPilotEnabled"]
+    },
+    "MarketingPost": {
+      "title": "MarketingPost",
+      "description": "A scheduled or published marketing post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "platforms": { "type": "array" },
+        "language": { "type": "string" },
+        "scheduledAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "published"] },
+        "generatedByAI": { "type": "boolean" },
+        "imageKeywords": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "reach": { "type": "number" },
+        "likes": { "type": "number" },
+        "comments": { "type": "number" },
+        "clicks": { "type": "number" },
+        "engagementRate": { "type": "number" },
+        "clickThroughRate": { "type": "number" }
+      },
+      "required": ["id", "title", "content", "platforms", "language", "scheduledAt", "status", "generatedByAI"]
+    },
+    "CustomerInquiry": {
+      "title": "CustomerInquiry",
+      "description": "Inbound customer query and history logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerContact": { "type": "string" },
+        "channel": { "type": "string", "enum": ["Email", "Google Business", "WhatsApp", "Instagram DM", "Web Chat"] },
+        "query": { "type": "string" },
+        "language": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "drafted", "replied", "ignored", "archived"] },
+        "aiResponseDraft": { "type": "string" },
+        "finalReply": { "type": "string" },
+        "reviewedByHuman": { "type": "boolean" },
+        "interactionHistory": { "type": "array" },
+        "sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+        "sentimentScore": { "type": "number" }
+      },
+      "required": ["id", "customerName", "channel", "query", "language", "timestamp", "status", "reviewedByHuman", "interactionHistory"]
+    },
+    "Extension": {
+      "title": "Extension",
+      "description": "Integrations enabled in the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "icon": { "type": "string" },
+        "category": { "type": "string", "enum": ["social", "communication", "analytics", "utility"] },
+        "configSchema": { "type": "array" },
+        "config": { "type": "object" }
+      },
+      "required": ["id", "name", "description", "enabled", "icon", "category", "configSchema", "config"]
+    },
+    "InteractionLog": {
+      "title": "InteractionLog",
+      "description": "System audits and activity logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" },
+        "actor": { "type": "string", "enum": ["ai", "human"] }
+      },
+      "required": ["id", "action", "timestamp", "details", "actor"]
+    }
+  },
+  "firestore": {
+    "/config/{configId}": {
+      "schema": { "$ref": "#/entities/AgentConfig" },
+      "description": "Configurations for the business profile and assistant instructions"
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/MarketingPost" },
+      "description": "Social media marketing posts"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/CustomerInquiry" },
+      "description": "Inbound communication threads and ticket states"
+    },
+    "/extensions/{extensionId}": {
+      "schema": { "$ref": "#/entities/Extension" },
+      "description": "Connected third-party extensions"
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/InteractionLog" },
+      "description": "Security audit trails and actions logs"
+    }
+  }
+}

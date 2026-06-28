@@ -84,3 +84,22 @@ export interface InteractionLog {
   details: string;
   actor: 'ai' | 'human';
 }
+
+export interface BusinessAgent {
+  id: string;
+  businessName: string;
+  businessType: string;
+  config: AgentConfig;
+  status: 'active' | 'paused' | 'training';
+  createdDate: string;
+}
+
+export interface AdminCredentials {
+  username: string;
+  passwordHash: string;
+  twoFactorEnabled: boolean;
+  twoFactorSecret: string;
+  twoFactorVerified: boolean;
+  sessionTimeoutMinutes: number;
+}
+

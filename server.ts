@@ -4,7 +4,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
-import { AgentConfig, MarketingPost, CustomerInquiry, Extension, InteractionLog } from "./src/types";
+import { AgentConfig, MarketingPost, CustomerInquiry, Extension, InteractionLog, BusinessAgent, AdminCredentials } from "./src/types";
 
 dotenv.config();
 
@@ -72,6 +72,49 @@ const getInitialData = () => {
       { id: "faq-2", question: "What are your opening hours?", answer: "We are open daily from 7:00 AM to 7:00 PM. On Sundays, we host our special Jazz Brunch from 9:00 AM to 3:00 PM!" },
       { id: "faq-3", question: "Are pets allowed inside the cafe?", answer: "Absolutely! Well-behaved dogs are more than welcome in our indoor seating area as long as they are on a leash. We even have dog treats at the counter!" }
     ]
+  };
+
+  const initialAgents: BusinessAgent[] = [
+    {
+      id: "agent-larome",
+      businessName: "L'Arôme Café & Bakery",
+      businessType: "Artisanal Coffee Shop & Pastry Bakery",
+      status: "active",
+      createdDate: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+      config: initialConfig
+    },
+    {
+      id: "agent-lafriends",
+      businessName: "La Friend's Services Ménagers",
+      businessType: "Premium Eco-Friendly Cleaning Services",
+      status: "active",
+      createdDate: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+      config: {
+        businessName: "La Friend's Services Ménagers",
+        businessType: "Premium Eco-Friendly Home & Office Cleaning Services",
+        targetAudience: "Busy professionals, families, property owners, and local businesses seeking meticulous and eco-friendly cleaning services",
+        tone: "professional",
+        primaryLanguage: "French",
+        languages: ["French", "English"],
+        autoPilotEnabled: false,
+        systemPrompt: "You are the head of booking coordination and customer care at La Friend's Services Ménagers. Keep responses warm, hygienic, professional, and reliable. Always mention our eco-certified cleaning solutions and background-checked clean specialists.",
+        styleGuide: "1. Address customer politely. Greet them in French as 'La Famille La Friend' or 'Cher client'.\n2. Highlight our eco-friendly non-toxic certified products (safe for pets and infants).\n3. Use crisp, tidy emojis (✨, 🧼, 🧹, 🍃) to emphasize freshness and pristine hygiene.",
+        faqs: [
+          { id: "lf-faq-1", question: "Quels types de produits utilisez-vous ?", answer: "Nous utilisons exclusivement des produits certifiés éco-responsables, biodégradables et non toxiques. Ils garantissent une propreté éclatante tout en étant parfaitement sûrs pour vos enfants et vos animaux domestiques !" },
+          { id: "lf-faq-2", question: "Vos intervenants sont-ils assurés et déclarés ?", answer: "Absolument. Tous nos professionnels du ménage sont rigoureusement sélectionnés (références vérifiées, casier judiciaire vierge), formés en interne, déclarés et entièrement assurés contre tout dommage ou accident pour votre tranquillité d'esprit totale." },
+          { id: "lf-faq-3", question: "Comment planifier ou modifier un rendez-vous ?", answer: "Vous pouvez planifier, modifier ou annuler une prestation directement depuis votre espace client ou en répondant à nos alertes WhatsApp jusqu'à 24 heures à l'avance sans frais additionnels." }
+        ]
+      }
+    }
+  ];
+
+  const initialAdmin: AdminCredentials = {
+    username: "admin@lafriends.ai",
+    passwordHash: "LaFriendSecure2026!",
+    twoFactorEnabled: false,
+    twoFactorSecret: "LAFRIEND777XSECUREKEY888",
+    twoFactorVerified: false,
+    sessionTimeoutMinutes: 15
   };
 
   const initialPosts: MarketingPost[] = [
@@ -291,6 +334,9 @@ const getInitialData = () => {
 
   return {
     config: initialConfig,
+    agents: initialAgents,
+    activeAgentId: "agent-larome",
+    adminCredentials: initialAdmin,
     posts: initialPosts,
     inquiries: initialInquiries,
     extensions: initialExtensions,
@@ -363,6 +409,17 @@ const readDB = () => {
       });
     }
 
+    if (!data.agents || !Array.isArray(data.agents)) {
+      const init = getInitialData();
+      data.agents = init.agents;
+      data.activeAgentId = init.activeAgentId;
+      modified = true;
+    }
+    if (!data.adminCredentials) {
+      data.adminCredentials = getInitialData().adminCredentials;
+      modified = true;
+    }
+
     if (modified) {
       fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
     }
@@ -433,6 +490,166 @@ const getRandomImage = (keywords: string = "") => {
 // ==========================================
 // REST API ROUTES
 // ==========================================
+
+// GET agents list
+app.get("/api/agents", (req, res) => {
+  const db = readDB();
+  res.json({
+    agents: db.agents || [],
+    activeAgentId: db.activeAgentId || "agent-larome"
+  });
+});
+
+// POST select active agent
+app.post("/api/agents/select", (req, res) => {
+  const db = readDB();
+  const { agentId } = req.body;
+  if (!agentId) {
+    return res.status(400).json({ error: "agentId is required" });
+  }
+  const agent = db.agents?.find((a: any) => a.id === agentId);
+  if (!agent) {
+    return res.status(404).json({ error: "Agent not found" });
+  }
+  
+  db.activeAgentId = agentId;
+  db.config = agent.config; // override config with selected agent's config for backwards compatibility!
+  
+  // Log selection
+  db.logs.unshift({
+    id: `log-${Date.now()}`,
+    action: "Selected Agent Profile",
+    timestamp: new Date().toISOString(),
+    details: `Switched active agent profile to '${agent.businessName}'.`,
+    actor: "human"
+  });
+  
+  writeDB(db);
+  res.json({
+    success: true,
+    activeAgentId: db.activeAgentId,
+    config: db.config
+  });
+});
+
+// POST create/update agent
+app.post("/api/agents", (req, res) => {
+  const db = readDB();
+  const agentData = req.body;
+  
+  if (!agentData.id) {
+    // Creating a new agent!
+    const newId = `agent-${Date.now()}`;
+    const newAgent = {
+      id: newId,
+      businessName: agentData.businessName || "New Business",
+      businessType: agentData.businessType || "Consulting",
+      status: "active" as const,
+      createdDate: new Date().toISOString(),
+      config: {
+        businessName: agentData.businessName || "New Business",
+        businessType: agentData.businessType || "Consulting",
+        targetAudience: agentData.targetAudience || "General Audience",
+        tone: agentData.tone || "professional",
+        primaryLanguage: agentData.primaryLanguage || "English",
+        languages: agentData.languages || ["English"],
+        autoPilotEnabled: false,
+        systemPrompt: agentData.systemPrompt || `You are an AI assistant for ${agentData.businessName}.`,
+        styleGuide: agentData.styleGuide || "1. Be polite and professional.\n2. Keep answers direct.",
+        faqs: agentData.faqs || []
+      }
+    };
+    db.agents = db.agents || [];
+    db.agents.push(newAgent);
+    
+    // Also select it immediately!
+    db.activeAgentId = newId;
+    db.config = newAgent.config;
+    
+    db.logs.unshift({
+      id: `log-${Date.now()}`,
+      action: "Created Agent Profile",
+      timestamp: new Date().toISOString(),
+      details: `Created new autonomous agent for '${newAgent.businessName}' (${newAgent.businessType}).`,
+      actor: "human"
+    });
+  } else {
+    // Updating existing agent config!
+    const idx = db.agents?.findIndex((a: any) => a.id === agentData.id);
+    if (idx !== -1 && idx !== undefined) {
+      db.agents[idx] = { ...db.agents[idx], ...agentData };
+      if (db.activeAgentId === agentData.id) {
+        db.config = { ...db.config, ...agentData.config };
+        db.agents[idx].config = db.config; // sync back
+      }
+    }
+  }
+  
+  writeDB(db);
+  res.json({
+    agents: db.agents,
+    activeAgentId: db.activeAgentId,
+    config: db.config
+  });
+});
+
+// DELETE agent
+app.delete("/api/agents/:id", (req, res) => {
+  const db = readDB();
+  const { id } = req.params;
+  
+  if (db.agents?.length <= 1) {
+    return res.status(400).json({ error: "Cannot delete the only configured agent." });
+  }
+  
+  const deletedAgent = db.agents?.find((a: any) => a.id === id);
+  db.agents = db.agents?.filter((a: any) => a.id !== id) || [];
+  
+  if (db.activeAgentId === id) {
+    // Select the first remaining agent as active
+    const nextAgent = db.agents[0];
+    db.activeAgentId = nextAgent.id;
+    db.config = nextAgent.config;
+  }
+  
+  db.logs.unshift({
+    id: `log-${Date.now()}`,
+    action: "Deleted Agent Profile",
+    timestamp: new Date().toISOString(),
+    details: `Deleted agent profile for '${deletedAgent?.businessName || 'Unknown'}'.`,
+    actor: "human"
+  });
+  
+  writeDB(db);
+  res.json({
+    agents: db.agents,
+    activeAgentId: db.activeAgentId,
+    config: db.config
+  });
+});
+
+// GET admin security credentials
+app.get("/api/admin-security", (req, res) => {
+  const db = readDB();
+  res.json(db.adminCredentials);
+});
+
+// POST update admin security credentials / toggle 2FA
+app.post("/api/admin-security", (req, res) => {
+  const db = readDB();
+  db.adminCredentials = { ...db.adminCredentials, ...req.body };
+  
+  db.logs.unshift({
+    id: `log-${Date.now()}`,
+    action: "Security Settings Updated",
+    timestamp: new Date().toISOString(),
+    details: `Updated administrative security settings. 2FA is now ${db.adminCredentials.twoFactorEnabled ? 'ENABLED' : 'DISABLED'}.`,
+    actor: "human"
+  });
+  
+  writeDB(db);
+  res.json(db.adminCredentials);
+});
 
 // GET config
 app.get("/api/config", (req, res) => {
